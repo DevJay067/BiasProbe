@@ -10,7 +10,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials, firestore
-import google.generativeai as genai
+from google import genai
 
 load_dotenv()
 
@@ -73,17 +73,41 @@ def get_firestore_client():
 
 # ── Gemini AI ──────────────────────────────────────────────────────────────────
 
-def get_gemini_model(model_name: str = "gemini-1.5-flash"):
-    """Configure and return a Gemini generative model."""
-    if not GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY is not set. Add it to your .env file.")
-    genai.configure(api_key=GEMINI_API_KEY)
-    return genai.GenerativeModel(model_name)
+_genai_client = None
+
+
+def _get_genai_client() -> genai.Client:
+    """Return a singleton google.genai Client."""
+    global _genai_client
+    if _genai_client is None:
+        if not GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY is not set. Add it to your .env file.")
+        _genai_client = genai.Client(api_key=GEMINI_API_KEY)
+    return _genai_client
+
+
+class _GeminiModelWrapper:
+    """Thin compatibility wrapper so callers can keep using model.generate_content(prompt)."""
+
+    def __init__(self, client: genai.Client, model_name: str):
+        self._client = client
+        self._model_name = model_name
+
+    def generate_content(self, prompt: str):
+        return self._client.models.generate_content(
+            model=self._model_name,
+            contents=prompt,
+        )
+
+
+def get_gemini_model(model_name: str = "gemini-2.0-flash"):
+    """Configure and return a Gemini generative model wrapper."""
+    client = _get_genai_client()
+    return _GeminiModelWrapper(client, model_name)
 
 
 def get_gemini_embedding_model(model_name: str = "models/text-embedding-004"):
     """Return the model name string for embedding calls."""
-    if not GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY is not set. Add it to your .env file.")
-    genai.configure(api_key=GEMINI_API_KEY)
+    # Ensure the client is configured (validates API key)
+    _get_genai_client()
     return model_name

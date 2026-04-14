@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
-google-generativeai
+google-genai
 firebase-admin
 google-cloud-storage
 google-cloud-bigquery
